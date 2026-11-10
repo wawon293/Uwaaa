@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="ja" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School & Restricted Web Chat</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 h-screen flex flex-col overflow-hidden transition-colors duration-200">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Top Navigation Header -->
+    <header class="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 flex items-center justify-between shrink-0 shadow-sm z-10">
+        <div class="flex items-center space-x-3">
+            <button id="sidebar-toggle" class="md:hidden text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 focus:outline-none p-2">
+                <i class="fa-solid fa-bars text-lg"></i>
+            </button>
+            <div class="flex items-center space-x-2">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/30">
+                    <i class="fa-solid fa-comments text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base leading-tight tracking-tight">NexusChat</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">制限環境対応・安全Webチャット</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Header Actions -->
+        <div class="flex items-center space-x-3">
+            <!-- User Status Badge / Settings Button -->
+            <button onclick="openProfileModal()" class="flex items-center space-x-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 px-3 py-1.5 rounded-full transition-colors text-xs font-medium">
+                <div id="header-avatar" class="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold">U</div>
+                <span id="header-username" class="max-w-[100px] truncate">ゲスト</span>
+                <i class="fa-solid fa-gear text-slate-400 text-xs ml-1"></i>
+            </button>
+
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 transition-colors focus:outline-none" title="テーマ切り替え">
+                <i id="theme-icon" class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Sidebar: Rooms & Online Users -->
+        <aside id="sidebar" class="absolute md:relative inset-y-0 left-0 z-30 w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-transform duration-300 transform -translate-x-full md:translate-x-0 shrink-0">
+            <!-- Room Header & Add Button -->
+            <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">チャットルーム</span>
+                <button onclick="openCreateRoomModal()" class="text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 p-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center space-x-1">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>ルーム作成</span>
+                </button>
+            </div>
+
+            <!-- Room List -->
+            <div id="room-list" class="flex-1 overflow-y-auto p-3 space-y-1">
+                <!-- Dynamically populated room items -->
+            </div>
+
+            <!-- Active Users in Room -->
+            <div class="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">オンラインメンバー (<span id="member-count">0</span>)</span>
+                </div>
+                <div id="member-list" class="space-y-2 max-h-36 overflow-y-auto">
+                    <!-- Dynamically populated members -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Backdrop for mobile sidebar -->
+        <div id="sidebar-backdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/40 z-20 hidden md:hidden"></div>
+
+        <!-- Chat Area -->
+        <main class="flex-1 flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden">
+            <!-- Current Room Info Bar -->
+            <div class="h-14 bg-white/80 dark:bg-slate-800/80 backdrop-blur border-b border-slate-200 dark:border-slate-700 px-4 flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-3">
+                    <div id="current-room-icon" class="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-hashtag text-sm"></i>
+                    </div>
+                    <div>
+                        <h2 id="current-room-name" class="font-bold text-sm leading-tight">総合ロビー</h2>
+                        <p id="current-room-desc" class="text-xs text-slate-500 dark:text-slate-400">誰でも気軽に参加できるメインルームです</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="clearCurrentChat()" class="text-slate-400 hover:text-rose-500 p-2 rounded-lg text-xs transition-colors" title="自分の画面のチャット履歴をクリア">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Message Stream Area -->
+            <div id="message-container" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+                <!-- Dynamically populated messages -->
+            </div>
+
+            <!-- Typing Indicator -->
+            <div id="typing-indicator" class="px-6 py-1 text-xs text-slate-400 italic h-6 transition-opacity opacity-0"></div>
+
+            <!-- Message Input Form -->
+            <div class="p-3 md:p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shrink-0">
+                <form id="message-form" onsubmit="handleSendMessage(event)" class="flex items-end space-x-2">
+                    <div class="relative flex-1 bg-slate-100 dark:bg-slate-700 rounded-2xl border border-transparent focus-within:border-indigo-500 dark:focus-within:border-indigo-500 transition-all">
+                        <textarea id="message-input" rows="1" placeholder="メッセージを入力... (Shift + Enterで送信)" 
+                            class="w-full bg-transparent px-4 py-3 text-sm focus:outline-none resize-none max-h-32 text-slate-800 dark:text-slate-100 placeholder-slate-400"
+                            onkeydown="handleInputKeydown(event)" oninput="handleTypingInput()"></textarea>
+                        
+                        <!-- Emoji Picker Button inside input -->
+                        <div class="absolute right-3 bottom-2.5 flex items-center space-x-1">
+                            <button type="button" onclick="toggleEmojiPicker()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition-colors">
+                                <i class="fa-regular fa-face-smile text-lg"></i>
+                            </button>
+                        </div>
+
+                        <!-- Mini Emoji Quick Picker Popup -->
+                        <div id="emoji-picker" class="absolute bottom-12 right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl p-2 hidden grid-cols-6 gap-1 z-20">
+                            <button type="button" onclick="insertEmoji('😊')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">😊</button>
+                            <button type="button" onclick="insertEmoji('👍')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">👍</button>
+                            <button type="button" onclick="insertEmoji('❤️')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">❤️</button>
+                            <button type="button" onclick="insertEmoji('🔥')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">🔥</button>
+                            <button type="button" onclick="insertEmoji('🎉')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">🎉</button>
+                            <button type="button" onclick="insertEmoji('👏')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">👏</button>
+                            <button type="button" onclick="insertEmoji('🤔')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">🤔</button>
+                            <button type="button" onclick="insertEmoji('💡')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">💡</button>
+                            <button type="button" onclick="insertEmoji('🚀')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">🚀</button>
+                            <button type="button" onclick="insertEmoji('👀')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">👀</button>
+                            <button type="button" onclick="insertEmoji('✨')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">✨</button>
+                            <button type="button" onclick="insertEmoji('🙏')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-base">🙏</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white w-11 h-11 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-500/20 transition-all shrink-0">
+                        <i class="fa-solid fa-paper-plane text-sm"></i>
+                    </button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden transform transition-all">
+            <div class="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="font-bold text-base">ユーザー設定・プロフィール</h3>
+                <button onclick="closeProfileModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">表示名</label>
+                    <input type="text" id="profile-name-input" class="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500" placeholder="あなたの名前">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">アイコンカラー</label>
+                    <div id="color-picker-container" class="flex space-x-3">
+                        <!-- Colors injected by JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-700 flex justify-end space-x-2">
+                <button onclick="closeProfileModal()" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 transition-colors">キャンセル</button>
+                <button onclick="saveProfile()" class="px-5 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 transition-all">保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Room Modal -->
+    <div id="room-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden transform transition-all">
+            <div class="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="font-bold text-base">新規チャットルーム作成</h3>
+                <button onclick="closeCreateRoomModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">ルーム名</label>
+                    <input type="text" id="new-room-name" class="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500" placeholder="例: 数学の質問部屋、プログラミング等">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">ルーム説明</label>
+                    <input type="text" id="new-room-desc" class="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500" placeholder="例: 定期テストの対策や課題について話そう">
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-700 flex justify-end space-x-2">
+                <button onclick="closeCreateRoomModal()" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 transition-colors">キャンセル</button>
+                <button onclick="createRoom()" class="px-5 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 transition-all">作成する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // --- Color Palette Options ---
+        const AVATAR_COLORS = [
+            'bg-indigo-500', 'bg-blue-500', 'bg-emerald-500', 
+            'bg-amber-500', 'bg-rose-500', 'bg-purple-500', 'bg-cyan-500'
+        ];
+
+        // --- State Management ---
+        let currentUser = {
+            id: 'user_' + Math.random().toString(36).substring(2, 9),
+            name: '生徒_' + Math.floor(Math.random() * 900 + 100),
+            color: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]
+        };
+
+        let currentRoomId = 'general';
+        let rooms = [
+            { id: 'general', name: '総合ロビー', desc: '学校生活や雑談など自由にどうぞ', icon: 'fa-comments' },
+            { id: 'study', name: '自習・勉強部屋', desc: 'テスト勉強や課題の質問に活用しよう', icon: 'fa-book-open' },
+            { id: 'tech', name: 'IT・プログラミング', desc: 'パソコン実習やコードについての話題', icon: 'fa-laptop-code' }
+        ];
+
+        let messages = {}; // roomId -> Array of messages
+        let activeUsers = {}; // roomId -> Set/Array of user info
+        let typingUsers = {}; // roomId -> timer or boolean
+
+        // --- BroadcastChannel for real-time multi-tab/window sync ---
+        const channel = new BroadcastChannel('school_web_chat_channel_v1');
+
+        // --- Initialization ---
+        window.onload = function() {
+            loadStoredData();
+            initProfileForm();
+            renderRooms();
+            switchRoom(currentRoomId);
+            setupAutoPresence();
+
+            // Listen to messages from other tabs/windows
+            channel.onmessage = function(event) {
+                const data = event.data;
+                if (data.type === 'NEW_MESSAGE') {
+                    if (!messages[data.roomId]) messages[data.roomId] = [];
+                    // Check if message already exists
+                    if (!messages[data.roomId].some(m => m.id === data.message.id)) {
+                        messages[data.message.roomId].push(data.message);
+                        saveStoredData();
+                        if (currentRoomId === data.roomId) {
+                            renderMessages();
+                            scrollToBottom();
+                        } else {
+                            showToast(`${data.message.senderName} さんから新着メッセージ`, 'info');
+                        }
+                    }
+                } else if (data.type === 'NEW_ROOM') {
+                    if (!rooms.some(r => r.id === data.room.id)) {
+                        rooms.push(data.room);
+                        renderRooms();
+                    }
+                } else if (data.type === 'ADD_REACTION') {
+                    const { roomId, messageId, emoji, userId } = data;
+                    if (messages[roomId]) {
+                        const msg = messages[roomId].find(m => m.id === messageId);
+                        if (msg) {
+                            if (!msg.reactions) msg.reactions = {};
+                            if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+                            if (!msg.reactions[emoji].includes(userId)) {
+                                msg.reactions[emoji].push(userId);
+                                saveStoredData();
+                                if (currentRoomId === roomId) renderMessages();
+                            }
+                        }
+                    }
+                } else if (data.type === 'PRESENCE') {
+                    updateActiveUsers(data.user, data.roomId);
+                }
+            };
+
+            // Announce presence
+            broadcastPresence();
+            setInterval(broadcastPresence, 4000);
+        };
+
+        // --- LocalStorage persistence ---
+        function loadStoredData() {
+            const savedUser = localStorage.getItem('chat_user');
+            if (savedUser) {
+                try { currentUser = JSON.parse(savedUser); } catch(e) {}
+            }
+
+            const savedRooms = localStorage.getItem('chat_rooms');
+            if (savedRooms) {
+                try { rooms = JSON.parse(savedRooms); } catch(e) {}
+            }
+
+            const savedMessages = localStorage.getItem('chat_messages');
+            if (savedMessages) {
+                try { messages = JSON.parse(savedMessages); } catch(e) {}
+            }
+
+            // Theme check
+            const savedTheme = localStorage.getItem('chat_theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.getElementById('theme-icon').className = 'fa-solid fa-sun';
+            }
+        }
+
+        function saveStoredData() {
+            localStorage.setItem('chat_user', JSON.stringify(currentUser));
+            localStorage.setItem('chat_rooms', JSON.stringify(rooms));
+            localStorage.setItem('chat_messages', JSON.stringify(messages));
+        }
+
+        // --- UI Rendering Functions ---
+        function renderRooms() {
+            const container = document.getElementById('room-list');
+            container.innerHTML = '';
+            rooms.forEach(room => {
+                const isActive = room.id === currentRoomId;
+                const div = document.createElement('div');
+                div.className = `flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all ${
+                    isActive 
+                        ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 font-semibold shadow-sm' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300'
+                }`;
+                div.onclick = () => switchRoom(room.id);
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3 truncate">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}">
+                            <i class="fa-solid ${room.icon || 'fa-hashtag'} text-xs"></i>
+                        </div>
+                        <div class="truncate">
+                            <div class="text-sm truncate">${escapeHtml(room.name)}</div>
+                            <div class="text-[10px] text-slate-400 truncate">${escapeHtml(room.desc || '')}</div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function switchRoom(roomId) {
+            currentRoomId = roomId;
+            const room = rooms.find(r => r.id === roomId) || rooms[0];
+            
+            document.getElementById('current-room-name').textContent = room.name;
+            document.getElementById('current-room-desc').textContent = room.desc || '';
+            document.getElementById('current-room-icon').innerHTML = `<i class="fa-solid ${room.icon || 'fa-hashtag'} text-sm"></i>`;
+
+            renderRooms();
+            renderMessages();
+            renderActiveUsers();
+            scrollToBottom();
+
+            // Close mobile sidebar if open
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            if (!sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('hidden');
+            }
+
+            broadcastPresence();
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('message-container');
+            container.innerHTML = '';
+
+            const roomMsgs = messages[currentRoomId] || [];
+            if (roomMsgs.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 py-12">
+                        <div class="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-comments"></i>
+                        </div>
+                        <p class="text-sm">まだメッセージはありません。最初の挨拶を送信してみましょう！</p>
+                    </div>
+                `;
+                return;
+            }
+
+            roomMsgs.forEach(msg => {
+                const isMe = msg.senderId === currentUser.id;
+                const timeStr = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `flex items-end space-x-2 ${isMe ? 'flex-row-reverse space-x-reverse' : ''} group`;
+
+                // Avatar
+                const avatarDiv = document.createElement('div');
+                avatarDiv.className = `w-8 h-8 rounded-full ${msg.senderColor} text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm`;
+                avatarDiv.textContent = msg.senderName.charAt(0).toUpperCase();
+
+                // Content wrapper
+                const contentDiv = document.createElement('div');
+                contentDiv.className = `max-w-[75%] sm:max-w-[65%] flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1`;
+
+                // Name & Time header
+                const infoDiv = document.createElement('div');
+                infoDiv.className = `text-[11px] text-slate-400 px-1 flex items-center space-x-2`;
+                infoDiv.innerHTML = `<span>${escapeHtml(msg.senderName)}</span><span>${timeStr}</span>`;
+
+                // Bubble
+                const bubble = document.createElement('div');
+                bubble.className = `p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words ${
+                    isMe 
+                        ? 'bg-indigo-600 text-white rounded-br-none' 
+                        : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-none'
+                }`;
+                bubble.innerHTML = escapeHtml(msg.text).replace(/\n/g, '<br>');
+
+                // Reactions bar container
+                const reactionsContainer = document.createElement('div');
+                reactionsContainer.className = `flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'} items-center`;
+
+                if (msg.reactions) {
+                    Object.entries(msg.reactions).forEach(([emoji, userIds]) => {
+                        if (userIds.length > 0) {
+                            const hasReacted = userIds.includes(currentUser.id);
+                            const badge = document.createElement('button');
+                            badge.className = `inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs border transition-all ${
+                                hasReacted 
+                                    ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 font-semibold' 
+                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                            }`;
+                            badge.innerHTML = `<span>${emoji}</span><span class="text-[10px]">${userIds.length}</span>`;
+                            badge.onclick = () => addReaction(msg.id, emoji);
+                            reactionsContainer.appendChild(badge);
+                        }
+                    });
+                }
+
+                // Add quick reaction trigger button on hover
+                const quickReactBtn = document.createElement('div');
+                quickReactBtn.className = `opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 text-xs text-slate-400 px-1`;
+                quickReactBtn.innerHTML = `
+                    <button onclick="addReaction('${msg.id}', '👍')" class="hover:text-indigo-500 p-1">👍</button>
+                    <button onclick="addReaction('${msg.id}', '❤️')" class="hover:text-rose-500 p-1">❤️</button>
+                    <button onclick="addReaction('${msg.id}', '🔥')" class="hover:text-amber-500 p-1">🔥</button>
+                `;
+
+                contentDiv.appendChild(infoDiv);
+                contentDiv.appendChild(bubble);
+                contentDiv.appendChild(reactionsContainer);
+                contentDiv.appendChild(quickReactBtn);
+
+                msgDiv.appendChild(avatarDiv);
+                msgDiv.appendChild(contentDiv);
+                container.appendChild(msgDiv);
+            });
+        }
+
+        // --- Sending Messages ---
+        function handleSendMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const newMsg = {
+                id: 'msg_' + Math.random().toString(36).substring(2, 9),
+                roomId: currentRoomId,
+                senderId: currentUser.id,
+                senderName: currentUser.name,
+                senderColor: currentUser.color,
+                text: text,
+                timestamp: Date.now(),
+                reactions: {}
+            };
+
+            if (!messages[currentRoomId]) messages[currentRoomId] = [];
+            messages[currentRoomId].push(newMsg);
+            saveStoredData();
+
+            input.value = '';
+            input.style.height = 'auto';
+
+            renderMessages();
+            scrollToBottom();
+
+            // Broadcast to other tabs/windows
+            channel.postMessage({
+                type: 'NEW_MESSAGE',
+                roomId: currentRoomId,
+                message: newMsg
+            });
+        }
+
+        function handleInputKeydown(e) {
+            if (e.key === 'Enter' && e.shiftKey) {
+                // Allow newline with shift+enter
+                return;
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSendMessage(e);
+            }
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('message-container');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // --- Reactions ---
+        function addReaction(messageId, emoji) {
+            const roomMsgs = messages[currentRoomId];
+            if (!roomMsgs) return;
+            const msg = roomMsgs.find(m => m.id === messageId);
+            if (!msg) return;
+
+            if (!msg.reactions) msg.reactions = {};
+            if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+
+            const index = msg.reactions[emoji].indexOf(currentUser.id);
+            if (index > -1) {
+                // Remove reaction if already added
+                msg.reactions[emoji].splice(index, 1);
+                if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
+            } else {
+                // Add reaction
+                msg.reactions[emoji].push(currentUser.id);
+            }
+
+            saveStoredData();
+            renderMessages();
+
+            // Broadcast reaction update
+            channel.postMessage({
+                type: 'ADD_REACTION',
+                roomId: currentRoomId,
+                messageId: messageId,
+                emoji: emoji,
+                userId: currentUser.id
+            });
+        }
+
+        // --- Emoji Picker Popup ---
+        function toggleEmojiPicker() {
+            const picker = document.getElementById('emoji-picker');
+            picker.classList.toggle('hidden');
+        }
+
+        function insertEmoji(emoji) {
+            const input = document.getElementById('message-input');
+            input.value += emoji;
+            input.focus();
+            document.getElementById('emoji-picker').classList.add('hidden');
+        }
+
+        // Close emoji picker when clicking outside
+        window.addEventListener('click', function(e) {
+            const picker = document.getElementById('emoji-picker');
+            const btn = picker.previousElementSibling;
+            if (!picker.contains(e.target) && !btn.contains(e.target)) {
+                picker.classList.add('hidden');
+            }
+        });
+
+        // --- Presence & Active Users ---
+        let onlineUsersMap = {}; // userId -> { name, color, lastSeen, roomId }
+
+        function broadcastPresence() {
+            channel.postMessage({
+                type: 'PRESENCE',
+                roomId: currentRoomId,
+                user: {
+                    id: currentUser.id,
+                    name: currentUser.name,
+                    color: currentUser.color,
+                    lastSeen: Date.now()
+                }
+            });
+        }
+
+        function updateActiveUsers(user, roomId) {
+            if (!onlineUsersMap[roomId]) onlineUsersMap[roomId] = {};
+            onlineUsersMap[roomId][user.id] = { ...user, lastSeen: Date.now() };
+            renderActiveUsers();
+        }
+
+        function setupAutoPresence() {
+            setInterval(() => {
+                const now = Date.now();
+                Object.keys(onlineUsersMap).forEach(rId => {
+                    if (onlineUsersMap[rId]) {
+                        Object.keys(onlineUsersMap[rId]).forEach(uId => {
+                            if (now - onlineUsersMap[rId][uId].lastSeen > 12000) {
+                                delete onlineUsersMap[rId][uId];
+                            }
+                        });
+                    }
+                });
+                renderActiveUsers();
+            }, 5000);
+        }
+
+        function renderActiveUsers() {
+            // Ensure self is in current room
+            if (!onlineUsersMap[currentRoomId]) onlineUsersMap[currentRoomId] = {};
+            onlineUsersMap[currentRoomId][currentUser.id] = { ...currentUser, lastSeen: Date.now() };
+
+            const listContainer = document.getElementById('member-list');
+            listContainer.innerHTML = '';
+
+            const usersInRoom = Object.values(onlineUsersMap[currentRoomId] || {});
+            document.getElementById('member-count').textContent = usersInRoom.length;
+
+            usersInRoom.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-2 text-xs text-slate-600 dark:text-slate-300';
+                div.innerHTML = `
+                    <div class="relative">
+                        <div class="w-6 h-6 rounded-full ${user.color} text-white flex items-center justify-center font-bold text-[10px]">${user.name.charAt(0).toUpperCase()}</div>
+                        <div class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-800"></div>
+                    </div>
+                    <span class="truncate">${escapeHtml(user.name)} ${user.id === currentUser.id ? '(あなた)' : ''}</span>
+                `;
+                listContainer.appendChild(div);
+            });
+        }
+
+        // --- Profile Management Modal ---
+        function openProfileModal() {
+            document.getElementById('profile-name-input').value = currentUser.name;
+            const container = document.getElementById('color-picker-container');
+            container.innerHTML = '';
+            
+            AVATAR_COLORS.forEach(colorClass => {
+                const btn = document.createElement('button');
+                const isSelected = currentUser.color === colorClass;
+                btn.className = `w-8 h-8 rounded-full ${colorClass} transition-transform ${isSelected ? 'ring-4 ring-indigo-300 scale-110' : 'hover:scale-105'}`;
+                btn.onclick = () => {
+                    currentUser.color = colorClass;
+                    openProfileModal(); // re-render colors
+                };
+                container.appendChild(btn);
+            });
+
+            document.getElementById('profile-modal').classList.remove('hidden');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profile-modal').classList.add('hidden');
+        }
+
+        function saveProfile() {
+            const nameInput = document.getElementById('profile-name-input').value.trim();
+            if (nameInput) {
+                currentUser.name = nameInput;
+            }
+            saveStoredData();
+            closeProfileModal();
+
+            // Update header badge
+            document.getElementById('header-username').textContent = currentUser.name;
+            const headerAvatar = document.getElementById('header-avatar');
+            headerAvatar.className = `w-6 h-6 rounded-full ${currentUser.color} text-white flex items-center justify-center text-xs font-bold`;
+            headerAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
+
+            broadcastPresence();
+            showToast('プロフィールを更新しました', 'success');
+        }
+
+        // --- Room Creation Modal ---
+        function openCreateRoomModal() {
+            document.getElementById('new-room-name').value = '';
+            document.getElementById('new-room-desc').value = '';
+            document.getElementById('room-modal').classList.remove('hidden');
+        }
+
+        function closeCreateRoomModal() {
+            document.getElementById('room-modal').classList.add('hidden');
+        }
+
+        function createRoom() {
+            const name = document.getElementById('new-room-name').value.trim();
+            const desc = document.getElementById('new-room-desc').value.trim();
+            if (!name) {
+                showToast('ルーム名を入力してください', 'error');
+                return;
+            }
+
+            const newRoom = {
+                id: 'room_' + Math.random().toString(36).substring(2, 9),
+                name: name,
+                desc: desc || 'カスタム作成されたルーム',
+                icon: 'fa-hashtag'
+            };
+
+            rooms.push(newRoom);
+            saveStoredData();
+            closeCreateRoomModal();
+            renderRooms();
+            switchRoom(newRoom.id);
+
+            // Broadcast new room
+            channel.postMessage({
+                type: 'NEW_ROOM',
+                room: newRoom
+            });
+
+            showToast(`ルーム「${name}」を作成しました`, 'success');
+        }
+
+        // --- Utility Functions ---
+        function clearCurrentChat() {
+            if (confirm('この画面のチャット履歴をクリアしますか？（他のユーザーには影響しません）')) {
+                messages[currentRoomId] = [];
+                saveStoredData();
+                renderMessages();
+                showToast('チャット履歴をクリアしました', 'info');
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('chat_theme', isDark ? 'dark' : 'light');
+            document.getElementById('theme-icon').className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.toggle('-translate-x-full');
+            backdrop.classList.toggle('hidden');
+        }
+
+        function handleTypingInput() {
+            const input = document.getElementById('message-input');
+            // Auto resize textarea
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-800 text-white';
+            if (type === 'success') bgClass = 'bg-emerald-600 text-white';
+            if (type === 'error') bgClass = 'bg-rose-600 text-white';
+
+            toast.className = `${bgClass} px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium transform transition-all duration-300 translate-y-2 opacity-0 flex items-center space-x-2`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 50);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(;'>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Initialize header badge info on load
+        document.getElementById('header-username').textContent = currentUser.name;
+        const headerAvatar = document.getElementById('header-avatar');
+        headerAvatar.className = `w-6 h-6 rounded-full ${currentUser.color} text-white flex items-center justify-center text-xs font-bold`;
+        headerAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
+    </script>
+</body>
+</html>
